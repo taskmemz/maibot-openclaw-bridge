@@ -26,10 +26,7 @@ enabled = true
 transport = "stdio"
 command = "python"
 args = ["你放server.py的路径/server.py"]
-env = { OPENCLAW_GATEWAY_PASSWORD = "你的OpenClaw密码" }
-
-# 如果 OpenClaw 是 token 模式，用这个:
-# env = { OPENCLAW_GATEWAY_TOKEN = "你的OpenClaw token" }
+env = { OPENCLAW_GATEWAY_TOKEN = "你的OpenClaw密钥" }
 ```
 
 或者在 MaiBot WebUI 中配置：**系统设置 → MCP → 服务器列表 → 添加服务器**，填入：
@@ -41,7 +38,7 @@ env = { OPENCLAW_GATEWAY_PASSWORD = "你的OpenClaw密码" }
 | 传输方式 | `stdio` |
 | 命令 | `python` |
 | 参数 | `["你放server.py的路径/server.py"]` |
-| 环境变量 | `OPENCLAW_GATEWAY_PASSWORD=你的密码`（token 模式用 `OPENCLAW_GATEWAY_TOKEN`） |
+| 环境变量 | `OPENCLAW_GATEWAY_TOKEN=你的密钥` |
 
 然后重启 MaiBot，日志中看到以下内容就说明连上了：
 
@@ -53,7 +50,6 @@ env = { OPENCLAW_GATEWAY_PASSWORD = "你的OpenClaw密码" }
 |---|---|
 | 不知道 server.py 放哪 | 找一个你喜欢的位置，把 `mcp-server/server.py` 放进去就行 |
 | 不知道 token 是什么 | 问你的 OpenClaw，它已经按 INSTALL.md 准备好了 |
-| OpenClaw 是 password 模式 | 用 `OPENCLAW_GATEWAY_PASSWORD` 代替 `OPENCLAW_GATEWAY_TOKEN` |
 | OpenClaw 不在本机 | 在 `args` 里加 `"--gateway", "ws://OpenClaw地址:18789"` |
 
 不想用 MCP 的话，也可以把 `maiot-plugin/` 整个复制到 MaiBot 的 `plugins/` 目录下，然后在 WebUI 里配 Gateway 地址和 token。

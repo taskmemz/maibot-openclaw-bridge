@@ -1,7 +1,7 @@
 """MCP server: bridges MaiBot <-> OpenClaw Gateway.
 
 Usage:
-    python server.py [--gateway ws://host:port] (--token TOKEN | --password PASSWORD)
+    python server.py [--gateway ws://host:port] [--token SECRET]
 
 Configure in MaiBot's bot_config.toml:
     [[mcp.servers]]
@@ -11,9 +11,6 @@ Configure in MaiBot's bot_config.toml:
     command = "python"
     args = ["path/to/server.py"]
     env = { OPENCLAW_GATEWAY_TOKEN = "xxx" }
-
-    # 如果 Gateway 是 password 模式，用 PASSWORD 环境变量:
-    env = { OPENCLAW_GATEWAY_PASSWORD = "xxx" }
 """
 
 from __future__ import annotations
@@ -28,18 +25,12 @@ from typing import Any
 MCP_PROTOCOL_VERSION = "2025-03-26"
 
 
-async def connect_gateway(url: str, secret: str, use_password: bool = False) -> Any:
+async def connect_gateway(url: str, secret: str) -> Any:
     import websockets
 
     ws = await asyncio.wait_for(websockets.connect(url, ping_interval=30), timeout=15)
     challenge_raw = await asyncio.wait_for(ws.recv(), timeout=10)
     challenge = json.loads(challenge_raw)
-
-    auth: dict[str, str] = {}
-    if use_password:
-        auth["password"] = secret
-    else:
-        auth["token"] = secret
 
     connect_req = {
         "type": "req",
@@ -56,7 +47,7 @@ async def connect_gateway(url: str, secret: str, use_password: bool = False) -> 
             },
             "role": "operator",
             "scopes": ["operator.read", "operator.write"],
-            "auth": auth,
+            "auth": {"token": secret, "password": secret},
         },
     }
     await ws.send(json.dumps(connect_req))
@@ -100,14 +91,14 @@ SKILL_PROMPTS: dict[str, str] = {
 }
 
 
-async def execute_task(gateway_url: str, secret: str, skill: str, params: dict[str, str], timeout_s: int, use_password: bool = False) -> dict:
+async def execute_task(gateway_url: str, secret: str, skill: str, params: dict[str, str], timeout_s: int) -> dict:
     prompt = SKILL_PROMPTS.get(skill, "")
     param_lines = "\n".join(f"{k}: {v}" for k, v in params.items() if v)
     task_msg = f"{prompt}\n\n## 输入数据\n\n{param_lines}"
 
     ws = None
     try:
-        ws = await connect_gateway(gateway_url, secret, use_password)
+        ws = await connect_gateway(gateway_url, secret)
 
         sess = await gateway_call(ws, "sessions.create", {
             "title": f"maibot-{skill}-{uuid.uuid4().hex[:8]}",
@@ -227,7 +218,6 @@ SKILL_MAP: dict[str, int] = {t["name"]: i for i, t in enumerate(TOOL_DEFS)}
 async def main() -> None:
     gateway_url = "ws://127.0.0.1:18789"
     secret = ""
-    use_password = False
     timeout_s = 300
 
     i = 1
@@ -241,7 +231,6 @@ async def main() -> None:
             i += 2
         elif a == "--password" and i + 1 < len(sys.argv):
             secret = sys.argv[i + 1]
-            use_password = True
             i += 2
         elif a == "--timeout" and i + 1 < len(sys.argv):
             timeout_s = int(sys.argv[i + 1])
@@ -251,10 +240,6 @@ async def main() -> None:
 
     if not secret:
         secret = os.environ.get("OPENCLAW_GATEWAY_TOKEN", "")
-    if not secret:
-        secret = os.environ.get("OPENCLAW_GATEWAY_PASSWORD", "")
-        if secret:
-            use_password = True
 
     stdin_reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(stdin_reader)
@@ -305,9 +290,8 @@ async def main() -> None:
                 })
                 continue
 
-            secret = os.environ.get("OPENCLAW_GATEWAY_TOKEN", "") or os.environ.get("OPENCLAW_GATEWAY_PASSWORD", "")
             skill_key = name.replace("openclaw_", "")
-            result = await execute_task(gateway_url, secret, skill_key, args, timeout_s, use_password)
+            result = await execute_task(gateway_url, secret, skill_key, args, timeout_s)
 
             if result["success"]:
                 await write({
