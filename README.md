@@ -1,6 +1,6 @@
 # MaiBot ↔ OpenClaw Bridge
 
-让 MaiBot 的推理引擎 Maisaka 将复杂任务委托给远程 OpenClaw 智能体执行。
+让 MaiBot 将复杂任务委托给远程 OpenClaw 智能体执行。
 
 ## 一句话让 OpenClaw 自助安装
 
@@ -8,13 +8,9 @@
 
 > 读一下 https://github.com/taskmemz/maibot-openclaw-bridge 的 openclaw-skill/，然后按 INSTALL.md 完成安装
 
-OpenClaw 会自动完成它那边需要做的 3 件事：确认 Gateway 可用、准备 token、安装 skill。
-
-MaiBot 侧的配置需要你手动完成。
-
 ## MaiBot 配置
 
-在 MaiBot 的 `bot_config.toml` 中添加：
+在 `bot_config.toml` 中添加：
 
 ```toml
 [mcp]
@@ -24,92 +20,66 @@ enable = true
 name = "openclaw"
 enabled = true
 transport = "stdio"
-command = "python"
-args = ["你放server.py的路径/server.py"]
-env = { OPENCLAW_GATEWAY_TOKEN = "你的OpenClaw密钥" }
+command = "uv"
+args = [
+    "run", "--with", "websockets",
+    "https://raw.githubusercontent.com/taskmemz/maibot-openclaw-bridge/main/mcp-server/server.py"
+]
+env = { OPENCLAW_GATEWAY_TOKEN = "你的密钥" }
 ```
 
-或者在 MaiBot WebUI 中配置：**系统设置 → MCP → 服务器列表 → 添加服务器**，填入：
+或者用 WebUI **系统设置 → MCP → 服务器列表 → 添加服务器**：
 
 | 字段 | 值 |
 |---|---|
 | 名称 | `openclaw` |
 | 启用 | 开 |
 | 传输方式 | `stdio` |
-| 命令 | `python` |
-| 参数 | `["你放server.py的路径/server.py"]` |
+| 命令 | `uv` |
+| 参数 | `["run", "--with", "websockets", "https://raw.githubusercontent.com/.../mcp-server/server.py"]` |
 | 环境变量 | `OPENCLAW_GATEWAY_TOKEN=你的密钥` |
 
-然后重启 MaiBot，日志中看到以下内容就说明连上了：
+重启后日志显示 `✓ MCP 服务器 'openclaw' 已连接 (工具 4 / ...)` 即成功。
 
-```
-✓ MCP 服务器 'openclaw' 已连接 (工具 4 / Prompt 0 / 资源 0 / 模板 0)
-```
-
-| 如果你 | 用这个 |
-|---|---|
-| 不知道 server.py 放哪 | 找一个你喜欢的位置，把 `mcp-server/server.py` 放进去就行 |
-| 不知道 token 是什么 | 问你的 OpenClaw，它已经按 INSTALL.md 准备好了 |
-| OpenClaw 不在本机 | 在 `args` 里加 `"--gateway", "ws://OpenClaw地址:18789"` |
-
-不想用 MCP 的话，也可以把 `maiot-plugin/` 整个复制到 MaiBot 的 `plugins/` 目录下，然后在 WebUI 里配 Gateway 地址和 token。
+> `uv run` 会自动下载脚本和依赖，不需要手动下载 `server.py` 或安装 `websockets`。如果 MaiBot 没用 uv，也可以用 `python` + `pip install websockets` 的方式，`command = "python"` + `args = ["下载好的server.py路径"]`。
 
 ## 架构
 
-### MCP Server 桥接（推荐）
-
 ```
 MaiBot (mcp_module)
-  │  MCP stdio (JSON-RPC 2.0)
-  ▼  MaiBot 原生支持，零额外依赖
-mcp-server/server.py
-  │  WebSocket (OpenClaw Gateway 协议 v4)
+  │  MCP stdio
   ▼
-OpenClaw Gateway (远程)
+uv run server.py         ← uv 自动管理依赖和脚本
+  │  WebSocket (Gateway 协议 v4)
+  ▼
+OpenClaw Gateway
   │  sessions.create → sessions.send → agent.wait
   ▼
-OpenClaw Agent         ← 被 openclaw-skill/SKILL.md 引导
-```
-
-MCP 工具通过 `MCPToolProvider` 注册到 MaiBot 的统一 `ToolRegistry`，Maisaka 规划器调用 MCP 工具与调用内置工具（`reply`、`wait`、`finish`）完全一致，无需区分来源。
-
-### MaiBot 插件桥接（备选）
-
-```
-MaiBot (plugin_runtime)
-  │  @Tool 组件
-  ▼
-maiot-plugin/plugin.py  ← plugins/ 目录安装
-  │  WebSocket
-  ▼
-OpenClaw Gateway (远程)
+OpenClaw Agent           ← 被 openclaw-skill/SKILL.md 引导
 ```
 
 ## 技能清单
 
-MaiBot 连接后可获得以下工具：
-
-| 工具 | 用途 |
+| MCP 工具 | 用途 |
 |---|---|
-| `openclaw_investigate` | 传入错误栈/复现步骤，OpenClaw 进行根因分析 |
-| `openclaw_ceo_review` | 传入计划/方案，OpenClaw 进行 CEO 级审查 |
-| `openclaw_office_hours` | 传入产品想法，OpenClaw 进行 YC 式评估 |
-| `openclaw_retro` | 传入工作数据，OpenClaw 进行回顾分析 |
+| `openclaw_investigate` | 错误根因分析 |
+| `openclaw_ceo_review` | 计划审查 |
+| `openclaw_office_hours` | 产品想法评估 |
+| `openclaw_retro` | 工程回顾 |
 
 ## 目录结构
 
 ```
 maibot-openclaw-bridge/
 ├── README.md
+├── pyproject.toml              # Python 包配置
+├── src/maibot_openclaw_bridge/
+│   ├── __init__.py
+│   └── __main__.py             # MCP server 核心逻辑
 ├── mcp-server/
-│   ├── server.py
-│   └── README.md
-├── maiot-plugin/
-│   ├── _manifest.json
-│   ├── plugin.py
-│   ├── config.toml
-│   └── .gitignore
+│   └── server.py               # 向后兼容入口
+├── maiot-plugin/               # 备选：MaiBot 插件方式
 └── openclaw-skill/
-    ├── SKILL.md
-    └── INSTALL.md
+    ├── SKILL.md                # → OpenClaw 技能目录
+    └── INSTALL.md              # OpenClaw 安装说明
 ```
