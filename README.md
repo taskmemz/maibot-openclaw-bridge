@@ -29,6 +29,17 @@ args = ["你放server.py的路径/server.py"]
 env = { OPENCLAW_GATEWAY_TOKEN = "你的OpenClaw token" }
 ```
 
+或者在 MaiBot WebUI 中配置：**系统设置 → MCP → 服务器列表 → 添加服务器**，填入：
+
+| 字段 | 值 |
+|---|---|
+| 名称 | `openclaw` |
+| 启用 | 开 |
+| 传输方式 | `stdio` |
+| 命令 | `python` |
+| 参数 | `["你放server.py的路径/server.py"]` |
+| 环境变量 | `OPENCLAW_GATEWAY_TOKEN=你的token` |
+
 然后重启 MaiBot，日志中看到以下内容就说明连上了：
 
 ```
