@@ -1,82 +1,43 @@
 # MaiBot ↔ OpenClaw Bridge
 
-让 MaiBot 将复杂任务委托给远程 OpenClaw 智能体执行。
+让 MaiBot 把复杂任务丢给 OpenClaw 处理。
 
-## 一句话让 OpenClaw 自助安装
+## 最佳方案：OpenClaw MCP Bridge（零认证问题）
 
-告诉你的 OpenClaw：
+在 OpenClaw 机器上跑一个简单 HTTP server，用 `openclaw agent` CLI 执行任务，CLI 自己处理认证。
 
-> 读一下 https://github.com/taskmemz/maibot-openclaw-bridge 的 openclaw-skill/，然后按 INSTALL.md 完成安装
-
-## MaiBot 安装（插件方式）
-
-插件已独立为 [taskmemz/openclaw-skills-plugin](https://github.com/taskmemz/openclaw-skills-plugin)。在 MaiBot 上部署：
+**OpenClaw 做：**
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/taskmemz/openclaw-skills-plugin.git /MaiMBot/plugins/openclaw-skills
-cd /MaiMBot/plugins/openclaw-skills && rm -rf .git
-uv pip install websockets
+wget https://raw.githubusercontent.com/taskmemz/maibot-openclaw-bridge/main/openclaw-mcp-server/server.py
+python3 server.py
 ```
 
-然后在 WebUI 中配置：
-
-**系统设置 → 插件 → openclaw-skills → 配置**：
-
-| 字段 | 值 |
-|---|---|
-| 网关地址 | `ws://你的OpenClaw地址:18789` |
-| 认证令牌 | 你的 OpenClaw gateway 密钥 |
-| 任务超时 | `300` |
-
-或修改插件配置页的 `config.toml`：
+**MaiBot 做：**
 
 ```toml
-[gateway]
-url = "ws://你的OpenClaw地址:18789"
-token = "你的OpenClaw密钥"
-timeout_seconds = 300
-
-[skills]
-investigate_enabled = true
-ceo_review_enabled = true
-office_hours_enabled = true
-retro_enabled = true
+[[mcp.servers]]
+name = "openclaw"
+enabled = true
+transport = "streamable_http"
+url = "http://你的OpenClaw地址:18790/message"
 ```
 
-重启后插件自动加载。
+不需要处理 Gateway 协议、设备认证、scope 权限——全部绕过。
 
-## 架构
+## 备选：MaiBot 插件
 
-```
-MaiBot (plugin_runtime)
-  │  @Tool 组件 (openclaw_investigate/ceo_review/...)
-  ▼
-plugin.py
-  │  WebSocket (Gateway 协议 v4)
-  ▼
-OpenClaw Gateway
-  │  sessions.create → sessions.send → agent.wait
-  ▼
-OpenClaw Agent     ← 被 openclaw-skill/SKILL.md 引导
-```
+网关协议认证复杂且需要设备密钥，不推荐。详见 [taskmemz/openclaw-skills-plugin](https://github.com/taskmemz/openclaw-skills-plugin)。
 
-## 技能清单
-
-| 插件 Tool | 用途 |
-|---|---|
-| `openclaw_investigate` | 错误根因分析 |
-| `openclaw_ceo_review` | 计划审查 |
-| `openclaw_office_hours` | 产品想法评估 |
-| `openclaw_retro` | 工程回顾 |
-
-## 目录结构
+## 结构
 
 ```
 maibot-openclaw-bridge/
 ├── README.md
-├── maibot-plugin/ → https://github.com/taskmemz/openclaw-skills-plugin.git
-├── mcp-server/                    # 备选：MCP server 方式
-└── openclaw-skill/                # OpenClaw 侧文件
-    ├── SKILL.md                   # → OpenClaw 技能目录
-    └── INSTALL.md                 # OpenClaw 安装说明
+├── openclaw-mcp-server/          # [推荐] 最简方案
+│   ├── server.py                 #   零依赖 HTTP MCP server
+│   └── README.md                 #   使用说明
+├── maibot-plugin/ → openclaw-skills-plugin  # [备选] 插件方式
+├── mcp-server/                   # [归档] MCP server 桥接
+└── openclaw-skill/               # OpenClaw 侧技能
 ```
