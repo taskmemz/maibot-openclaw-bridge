@@ -140,3 +140,7 @@ maibot-openclaw-bridge/
 | `env` | 环境变量，用于传入敏感信息 |
 | `http_timeout_seconds` | HTTP 请求超时，默认 30s |
 | `read_timeout_seconds` | 会话读取超时，默认 300s |
+=======
+# maibot-openclaw-bridge
+letting maibot to connect with Openclaw
+>>>>>>> 8f2f4624adcf56e0a753d2739f8f410faa5c3042
