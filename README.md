@@ -8,62 +8,53 @@
 
 > 读一下 https://github.com/taskmemz/maibot-openclaw-bridge 的 openclaw-skill/，然后按 INSTALL.md 完成安装
 
-## MaiBot 配置
+## MaiBot 安装（插件方式）
 
-在 `bot_config.toml` 中添加：
+将 `maibot-plugin/` 整个复制到 MaiBot 的 `plugins/openclaw-skills/` 目录，然后在 WebUI 中配置：
 
-```toml
-[mcp]
-enable = true
-
-[[mcp.servers]]
-name = "openclaw"
-enabled = true
-transport = "stdio"
-command = "uv"
-args = [
-    "run", "--with", "websockets",
-    "https://raw.githubusercontent.com/taskmemz/maibot-openclaw-bridge/main/mcp-server/server.py"
-]
-env = { OPENCLAW_GATEWAY_TOKEN = "你的密钥" }
-```
-
-或者用 WebUI **系统设置 → MCP → 服务器列表 → 添加服务器**：
+**系统设置 → 插件 → openclaw-skills → 配置**：
 
 | 字段 | 值 |
 |---|---|
-| 名称 | `openclaw` |
-| 启用 | 开 |
-| 传输方式 | `stdio` |
-| 命令 | `uv` |
-| 参数（每行一个） | `run` |
-|  | `--with` |
-|  | `websockets` |
-|  | `https://raw.githubusercontent.com/taskmemz/maibot-openclaw-bridge/main/mcp-server/server.py` |
-| 环境变量 | `OPENCLAW_GATEWAY_TOKEN=你的密钥` |
+| 网关地址 | `ws://你的OpenClaw地址:18789` |
+| 认证令牌 | 你的 OpenClaw gateway 密钥 |
+| 任务超时 | `300` |
 
-重启后日志显示 `✓ MCP 服务器 'openclaw' 已连接 (工具 4 / ...)` 即成功。
+或修改插件配置页的 `config.toml`：
 
-> `uv run` 会自动下载脚本和依赖，不需要手动下载 `server.py` 或安装 `websockets`。如果 MaiBot 没用 uv，也可以用 `python` + `pip install websockets` 的方式，`command = "python"` + `args = ["下载好的server.py路径"]`。
+```toml
+[gateway]
+url = "ws://你的OpenClaw地址:18789"
+token = "你的OpenClaw密钥"
+timeout_seconds = 300
+
+[skills]
+investigate_enabled = true
+ceo_review_enabled = true
+office_hours_enabled = true
+retro_enabled = true
+```
+
+重启后插件自动加载。
 
 ## 架构
 
 ```
-MaiBot (mcp_module)
-  │  MCP stdio
+MaiBot (plugin_runtime)
+  │  @Tool 组件 (openclaw_investigate/ceo_review/...)
   ▼
-uv run server.py         ← uv 自动管理依赖和脚本
+plugin.py
   │  WebSocket (Gateway 协议 v4)
   ▼
 OpenClaw Gateway
   │  sessions.create → sessions.send → agent.wait
   ▼
-OpenClaw Agent           ← 被 openclaw-skill/SKILL.md 引导
+OpenClaw Agent     ← 被 openclaw-skill/SKILL.md 引导
 ```
 
 ## 技能清单
 
-| MCP 工具 | 用途 |
+| 插件 Tool | 用途 |
 |---|---|
 | `openclaw_investigate` | 错误根因分析 |
 | `openclaw_ceo_review` | 计划审查 |
@@ -75,14 +66,13 @@ OpenClaw Agent           ← 被 openclaw-skill/SKILL.md 引导
 ```
 maibot-openclaw-bridge/
 ├── README.md
-├── pyproject.toml              # Python 包配置
-├── src/maibot_openclaw_bridge/
-│   ├── __init__.py
-│   └── __main__.py             # MCP server 核心逻辑
-├── mcp-server/
-│   └── server.py               # 向后兼容入口
-├── maiot-plugin/               # 备选：MaiBot 插件方式
-└── openclaw-skill/
-    ├── SKILL.md                # → OpenClaw 技能目录
-    └── INSTALL.md              # OpenClaw 安装说明
+├── maibot-plugin/                 # MaiBot 插件（复制到 plugins/ 目录）
+│   ├── _manifest.json
+│   ├── plugin.py
+│   ├── config.toml
+│   └── .gitignore
+├── mcp-server/                    # 备选：MCP server 方式
+├── openclaw-skill/                # OpenClaw 侧文件
+│   ├── SKILL.md                   # → OpenClaw 技能目录
+│   └── INSTALL.md                 # OpenClaw 安装说明
 ```

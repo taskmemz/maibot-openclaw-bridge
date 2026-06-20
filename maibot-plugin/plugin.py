@@ -329,7 +329,7 @@ class OpenClawSkillsPlugin(MaiBotPlugin):
                     },
                     "role": "operator",
                     "scopes": ["operator.read", "operator.write"],
-                    "auth": {"token": token},
+                    "auth": {"token": token, "password": token},
                 },
             }
             await ws.send(json.dumps(connect_req))
@@ -393,7 +393,13 @@ class OpenClawSkillsPlugin(MaiBotPlugin):
                             "success": False,
                             "error": f"任务执行失败: {msg}",
                         }
-                    response_text = msg.get("payload", {}).get("response", "")
+                    payload = msg.get("payload", {})
+                    response_text = (
+                        payload.get("response")
+                        or payload.get("text")
+                        or payload.get("content")
+                        or str(payload)
+                    )
                     return {
                         "success": True,
                         "skill": skill,
