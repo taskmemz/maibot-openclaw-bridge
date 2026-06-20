@@ -36,7 +36,10 @@ env = { OPENCLAW_GATEWAY_TOKEN = "你的密钥" }
 | 启用 | 开 |
 | 传输方式 | `stdio` |
 | 命令 | `uv` |
-| 参数 | `["run", "--with", "websockets", "https://raw.githubusercontent.com/.../mcp-server/server.py"]` |
+| 参数（每行一个） | `run` |
+|  | `--with` |
+|  | `websockets` |
+|  | `https://raw.githubusercontent.com/taskmemz/maibot-openclaw-bridge/main/mcp-server/server.py` |
 | 环境变量 | `OPENCLAW_GATEWAY_TOKEN=你的密钥` |
 
 重启后日志显示 `✓ MCP 服务器 'openclaw' 已连接 (工具 4 / ...)` 即成功。
