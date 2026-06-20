@@ -9,7 +9,8 @@ Configure in MaiBot's bot_config.toml:
     enabled = true
     transport = "stdio"
     command = "python"
-    args = ["path/to/server.py", "--token", "xxx"]
+    args = ["path/to/server.py"]
+    env = { OPENCLAW_GATEWAY_TOKEN = "xxx" }
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ async def connect_gateway(url: str, token: str) -> Any:
     import websockets
 
     ws = await asyncio.wait_for(websockets.connect(url, ping_interval=30), timeout=15)
-
     challenge_raw = await asyncio.wait_for(ws.recv(), timeout=10)
     challenge = json.loads(challenge_raw)
 
@@ -62,59 +62,54 @@ def req_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-async def gateway_call(
-    ws: Any, method: str, params: dict[str, Any], timeout: float = 30
-) -> dict:
+async def gateway_call(ws: Any, method: str, params: dict[str, Any], timeout: float = 30) -> dict:
     req = {"type": "req", "id": req_id(), "method": method, "params": params}
     await ws.send(json.dumps(req))
     raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
     return json.loads(raw)
 
 
-async def execute_task(
-    gateway_url: str, token: str, skill: str, params: dict[str, str], timeout_s: int
-) -> dict:
-    skill_prompts = {
-        "openclaw_investigate": (
-            "你是一个系统调试专家。请根据以下信息进行根因分析，"
-            "输出包含：症状描述、根因分析、修复建议、复现步骤、相关注意事项。"
-        ),
-        "openclaw_ceo_review": (
-            "你是一个 CEO 级规划审查专家。请根据以下计划进行审查，"
-            "输出包含：架构评估、错误处理映射、安全威胁模型、"
-            "数据流与边界情况、性能与可观测性、部署与回滚策略、测试覆盖评估。"
-        ),
-        "openclaw_office_hours": (
-            "你是一个 YC 创业导师。请根据以下产品想法进行评估，"
-            "输出包含：问题理解、需求真实性验证、目标用户画像、"
-            "竞品分析、最小可行方案建议、潜在风险、下一步行动。"
-        ),
-        "openclaw_retro": (
-            "你是一个工程回顾专家。请根据以下工作数据进行分析，"
-            "输出包含：工作总结、做得好的方面、需要改进的方面、行动项与优先级。"
-        ),
-    }
-    prompt = skill_prompts.get(skill, "")
+SKILL_PROMPTS: dict[str, str] = {
+    "investigate": (
+        "你是一个系统调试专家。请根据以下信息进行根因分析，"
+        "输出包含：症状描述、根因分析、修复建议、复现步骤、相关注意事项。"
+    ),
+    "ceo_review": (
+        "你是一个 CEO 级规划审查专家。请根据以下计划进行审查，"
+        "输出包含：架构评估、错误处理映射、安全威胁模型、"
+        "数据流与边界情况、性能与可观测性、部署与回滚策略、测试覆盖评估。"
+    ),
+    "office_hours": (
+        "你是一个 YC 创业导师。请根据以下产品想法进行评估，"
+        "输出包含：问题理解、需求真实性验证、目标用户画像、"
+        "竞品分析、最小可行方案建议、潜在风险、下一步行动。"
+    ),
+    "retro": (
+        "你是一个工程回顾专家。请根据以下工作数据进行分析，"
+        "输出包含：工作总结、做得好的方面、需要改进的方面、行动项与优先级。"
+    ),
+}
+
+
+async def execute_task(gateway_url: str, token: str, skill: str, params: dict[str, str], timeout_s: int) -> dict:
+    prompt = SKILL_PROMPTS.get(skill, "")
     param_lines = "\n".join(f"{k}: {v}" for k, v in params.items() if v)
     task_msg = f"{prompt}\n\n## 输入数据\n\n{param_lines}"
 
     ws = None
     try:
         ws = await connect_gateway(gateway_url, token)
-        sess = await gateway_call(
-            ws,
-            "sessions.create",
-            {"title": f"maibot-{skill}-{uuid.uuid4().hex[:8]}"},
-        )
+
+        sess = await gateway_call(ws, "sessions.create", {
+            "title": f"maibot-{skill}-{uuid.uuid4().hex[:8]}",
+        })
         if not sess.get("ok"):
             return {"success": False, "error": f"session create failed: {sess}"}
         session_key = sess["payload"]["key"]
 
-        send = await gateway_call(
-            ws,
-            "sessions.send",
-            {"key": session_key, "message": task_msg, "deliver": False},
-        )
+        send = await gateway_call(ws, "sessions.send", {
+            "key": session_key, "message": task_msg, "deliver": False,
+        })
         if not send.get("ok"):
             return {"success": False, "error": f"send failed: {send}"}
         run_id = send["payload"].get("runId", "")
@@ -126,12 +121,7 @@ async def execute_task(
         if run_id:
             wait_params["runId"] = run_id
 
-        wait_req = {
-            "type": "req",
-            "id": req_id(),
-            "method": "agent.wait",
-            "params": wait_params,
-        }
+        wait_req = {"type": "req", "id": req_id(), "method": "agent.wait", "params": wait_params}
         await ws.send(json.dumps(wait_req))
 
         while True:
@@ -140,7 +130,16 @@ async def execute_task(
             if msg.get("type") == "res" and msg.get("id") == wait_req["id"]:
                 if not msg.get("ok"):
                     return {"success": False, "error": f"task failed: {msg}"}
-                response_text = msg.get("payload", {}).get("response", "")
+
+                payload = msg.get("payload", {})
+
+                response_text = (
+                    payload.get("response")
+                    or payload.get("text")
+                    or payload.get("content")
+                    or str(payload)
+                )
+
                 return {"success": True, "skill": skill, "response": response_text}
 
     except asyncio.TimeoutError:
@@ -162,22 +161,10 @@ TOOL_DEFS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "error_description": {
-                    "type": "string",
-                    "description": "错误描述，用一句话概括问题",
-                },
-                "stack_trace": {
-                    "type": "string",
-                    "description": "错误栈追踪或完整错误日志",
-                },
-                "reproduction_steps": {
-                    "type": "string",
-                    "description": "复现步骤",
-                },
-                "additional_context": {
-                    "type": "string",
-                    "description": "额外上下文，如环境版本、最近改动",
-                },
+                "error_description": {"type": "string", "description": "错误描述，用一句话概括问题"},
+                "stack_trace": {"type": "string", "description": "错误栈追踪或完整错误日志"},
+                "reproduction_steps": {"type": "string", "description": "复现步骤"},
+                "additional_context": {"type": "string", "description": "额外上下文，如环境版本、最近改动"},
             },
             "required": ["error_description"],
         },
@@ -189,14 +176,8 @@ TOOL_DEFS: list[dict] = [
             "type": "object",
             "properties": {
                 "plan_title": {"type": "string", "description": "计划标题"},
-                "plan_content": {
-                    "type": "string",
-                    "description": "计划内容，包括背景、方案、技术选型",
-                },
-                "review_focus": {
-                    "type": "string",
-                    "description": "审查重点，如架构、安全、性能",
-                },
+                "plan_content": {"type": "string", "description": "计划内容，包括背景、方案、技术选型"},
+                "review_focus": {"type": "string", "description": "审查重点，如架构、安全、性能"},
             },
             "required": ["plan_title", "plan_content"],
         },
@@ -208,18 +189,9 @@ TOOL_DEFS: list[dict] = [
             "type": "object",
             "properties": {
                 "idea_title": {"type": "string", "description": "想法标题"},
-                "idea_description": {
-                    "type": "string",
-                    "description": "想法详细描述",
-                },
-                "target_users": {
-                    "type": "string",
-                    "description": "目标用户群体",
-                },
-                "existing_solutions": {
-                    "type": "string",
-                    "description": "现有替代方案或竞品",
-                },
+                "idea_description": {"type": "string", "description": "想法详细描述"},
+                "target_users": {"type": "string", "description": "目标用户群体"},
+                "existing_solutions": {"type": "string", "description": "现有替代方案或竞品"},
             },
             "required": ["idea_title", "idea_description"],
         },
@@ -231,18 +203,9 @@ TOOL_DEFS: list[dict] = [
             "type": "object",
             "properties": {
                 "period": {"type": "string", "description": "回顾周期"},
-                "work_summary": {
-                    "type": "string",
-                    "description": "工作总结，完成的功能、修复的 Bug",
-                },
-                "metrics": {
-                    "type": "string",
-                    "description": "量化指标，提交数、PR 数等",
-                },
-                "highlights": {
-                    "type": "string",
-                    "description": "亮点或特别事项",
-                },
+                "work_summary": {"type": "string", "description": "工作总结，完成的功能、修复的 Bug"},
+                "metrics": {"type": "string", "description": "量化指标，提交数、PR 数等"},
+                "highlights": {"type": "string", "description": "亮点或特别事项"},
             },
             "required": ["period", "work_summary"],
         },
@@ -286,22 +249,16 @@ async def main() -> None:
 
     init_raw = await stdin_reader.readline()
     init_msg = json.loads(init_raw)
-    init_id = init_msg.get("id")
 
-    await write(
-        {
-            "jsonrpc": "2.0",
-            "id": init_id,
-            "result": {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {"tools": {}},
-                "serverInfo": {
-                    "name": "maibot-openclaw-bridge",
-                    "version": "1.0.0",
-                },
-            },
-        }
-    )
+    await write({
+        "jsonrpc": "2.0",
+        "id": init_msg.get("id"),
+        "result": {
+            "protocolVersion": MCP_PROTOCOL_VERSION,
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "maibot-openclaw-bridge", "version": "1.0.0"},
+        },
+    })
 
     await stdin_reader.readline()
 
@@ -311,59 +268,44 @@ async def main() -> None:
             break
         msg = json.loads(line)
         msg_id = msg.get("id")
+        if msg_id is None:
+            continue
         method = msg.get("method", "")
         params = msg.get("params", {})
 
         if method == "tools/list":
-            await write(
-                {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": TOOL_DEFS}}
-            )
+            await write({"jsonrpc": "2.0", "id": msg_id, "result": {"tools": TOOL_DEFS}})
 
         elif method == "tools/call":
             name = params.get("name", "")
             args = params.get("arguments", {})
 
             if name not in SKILL_MAP:
-                await write(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "error": {
-                            "code": -32602,
-                            "message": f"Unknown tool: {name}",
-                        },
-                    }
-                )
+                await write({
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "error": {"code": -32602, "message": f"Unknown tool: {name}"},
+                })
                 continue
 
             skill_key = name.replace("openclaw_", "")
             result = await execute_task(gateway_url, token, skill_key, args, timeout_s)
 
             if result["success"]:
-                await write(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "result": {
-                            "content": [{"type": "text", "text": result["response"]}]
-                        },
-                    }
-                )
+                await write({
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "result": {"content": [{"type": "text", "text": result["response"]}]},
+                })
             else:
-                await write(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "result": {
-                            "content": [
-                                {"type": "text", "text": f"错误: {result['error']}"}
-                            ],
-                            "isError": True,
-                        },
-                    }
-                )
+                await write({
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"错误: {result['error']}"}],
+                        "isError": True,
+                    },
+                })
+
         else:
-            await write({"jsonrpc": "2.0", "id": msg_id, "result": {}})
+            pass
 
 
 if __name__ == "__main__":

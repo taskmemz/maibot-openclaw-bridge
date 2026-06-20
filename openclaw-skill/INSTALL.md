@@ -1,18 +1,23 @@
 # MaiBot Bridge — OpenClaw 安装说明
 
-你需要做以下三件事：
+你需要完成以下三件事：
 
-1. 确保你的 Gateway 在运行中，MaiBot 需要通过 WebSocket 连过来
-2. 准备一个认证 token，MaiBot 连接时需要带上
-3. 将本仓库中的 `openclaw-skill/SKILL.md` 安装为你的技能
+### 1. 确认 Gateway 可用
 
-完成这些后，当 MaiBot 通过 MCP 调用你时，你会收到以下类型的任务：
+确保你的 Gateway 正在运行，MaiBot 需要通过 WebSocket 连接到你。记下 Gateway 的地址（默认 `ws://127.0.0.1:18789`）。
 
-| 工具 | 你会收到 | 你需要做的 |
-|---|---|---|
-| `openclaw_investigate` | 错误描述、栈追踪等 | 根因分析，输出结构化结果 |
-| `openclaw_ceo_review` | 计划内容 | 全面审查，输出评估 |
-| `openclaw_office_hours` | 产品想法 | YC 式评估 |
-| `openclaw_retro` | 工作数据 | 回顾分析 |
+### 2. 准备好认证 token
 
-处理完返回结构化 Markdown 结果即可。MaiBot 那边的部署由 MaiBot 自己负责。
+MaiBot 连接你的 Gateway 时需要 token。如果你还没设置，配置一个。
+
+### 3. 安装本技能
+
+将本仓库中 `openclaw-skill/SKILL.md` 的内容安装为你的技能：
+
+- 放入你的 skills 目录（通常是 `~/.openclaw/workspace/skills/maibot/SKILL.md`）
+- 或者通过你的技能管理机制安装
+- 然后重载配置使技能生效
+
+---
+
+安装完成后，当 MaiBot 通过 MCP 调用你时，你会收到任务消息，按 SKILL.md 中的说明处理即可。MaiBot 那边的部署由 MaiBot 自己负责。
