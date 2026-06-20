@@ -2,6 +2,16 @@
 
 让 MaiBot 的推理引擎 Maisaka 将复杂任务委托给远程 OpenClaw 智能体执行。
 
+## 一句话让 OpenClaw 自助安装
+
+告诉你的 OpenClaw：
+
+> 读一下 https://github.com/taskmemz/maibot-openclaw-bridge 的 openclaw-skill/，然后按 INSTALL.md 完成安装
+
+OpenClaw 会自动完成它那边需要做的 3 件事：确认 Gateway 可用、准备 token、安装 skill。
+
+MaiBot 侧的配置需要你手动完成，见下方。
+
 ## 架构
 
 ### MCP Server 桥接（推荐）
@@ -140,7 +150,3 @@ maibot-openclaw-bridge/
 | `env` | 环境变量，用于传入敏感信息 |
 | `http_timeout_seconds` | HTTP 请求超时，默认 30s |
 | `read_timeout_seconds` | 会话读取超时，默认 300s |
-=======
-# maibot-openclaw-bridge
-letting maibot to connect with Openclaw
->>>>>>> 8f2f4624adcf56e0a753d2739f8f410faa5c3042
