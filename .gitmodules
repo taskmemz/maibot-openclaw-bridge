@@ -1,0 +1,3 @@
+[submodule "maibot-plugin"]
+	path = maibot-plugin
+	url = https://github.com/taskmemz/openclaw-skills-plugin.git

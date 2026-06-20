@@ -10,7 +10,15 @@
 
 ## MaiBot 安装（插件方式）
 
-将 `maibot-plugin/` 整个复制到 MaiBot 的 `plugins/openclaw-skills/` 目录，然后在 WebUI 中配置：
+插件已独立为 [taskmemz/openclaw-skills-plugin](https://github.com/taskmemz/openclaw-skills-plugin)。在 MaiBot 上部署：
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/taskmemz/openclaw-skills-plugin.git /MaiMBot/plugins/openclaw-skills
+cd /MaiMBot/plugins/openclaw-skills && rm -rf .git
+uv pip install websockets
+```
+
+然后在 WebUI 中配置：
 
 **系统设置 → 插件 → openclaw-skills → 配置**：
 
@@ -66,13 +74,9 @@ OpenClaw Agent     ← 被 openclaw-skill/SKILL.md 引导
 ```
 maibot-openclaw-bridge/
 ├── README.md
-├── maibot-plugin/                 # MaiBot 插件（复制到 plugins/ 目录）
-│   ├── _manifest.json
-│   ├── plugin.py
-│   ├── config.toml
-│   └── .gitignore
+├── maibot-plugin/ → https://github.com/taskmemz/openclaw-skills-plugin.git
 ├── mcp-server/                    # 备选：MCP server 方式
-├── openclaw-skill/                # OpenClaw 侧文件
-│   ├── SKILL.md                   # → OpenClaw 技能目录
-│   └── INSTALL.md                 # OpenClaw 安装说明
+└── openclaw-skill/                # OpenClaw 侧文件
+    ├── SKILL.md                   # → OpenClaw 技能目录
+    └── INSTALL.md                 # OpenClaw 安装说明
 ```
