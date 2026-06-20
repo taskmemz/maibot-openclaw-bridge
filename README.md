@@ -10,7 +10,38 @@
 
 OpenClaw 会自动完成它那边需要做的 3 件事：确认 Gateway 可用、准备 token、安装 skill。
 
-MaiBot 侧的配置需要你手动完成，见下方。
+MaiBot 侧的配置需要你手动完成。
+
+## MaiBot 配置（需要你做）
+
+在 MaiBot 的 `bot_config.toml` 中添加：
+
+```toml
+[mcp]
+enable = true
+
+[[mcp.servers]]
+name = "openclaw"
+enabled = true
+transport = "stdio"
+command = "python"
+args = ["你放server.py的路径/server.py"]
+env = { OPENCLAW_GATEWAY_TOKEN = "你的OpenClaw token" }
+```
+
+然后重启 MaiBot，日志中看到以下内容就说明连上了：
+
+```
+✓ MCP 服务器 'openclaw' 已连接 (工具 4 / Prompt 0 / 资源 0 / 模板 0)
+```
+
+| 如果你 | 用这个 |
+|---|---|
+| 不知道 server.py 放哪 | 找一个你喜欢的位置，把 `mcp-server/server.py` 放进去就行 |
+| 不知道 token 是什么 | 问你的 OpenClaw，它已经按 INSTALL.md 准备好了 |
+| OpenClaw 不在本机 | 在 `args` 里加 `"--gateway", "ws://OpenClaw地址:18789"` |
+
+不想用 MCP 的话，也可以把 `maiot-plugin/` 整个复制到 MaiBot 的 `plugins/` 目录下，然后在 WebUI 里配 Gateway 地址和 token。
 
 ## 架构
 
